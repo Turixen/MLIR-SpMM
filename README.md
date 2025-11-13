@@ -166,15 +166,6 @@ For matrix multiplication A × B:
 - Converts to 0-based indexing for processing
 
 
-## Research Applications
-
-This toolkit is designed for:
-- **Performance Analysis**: Compare MLIR-generated code efficiency
-- **Algorithm Research**: Test different sparse matrix algorithms
-- **Benchmarking**: Use real-world matrices for realistic performance evaluation
-- **Educational**: Learn about sparse matrix operations and MLIR
-
-
 ## References
 
 - [SuiteSparse Matrix Collection](https://sparse.tamu.edu/)
