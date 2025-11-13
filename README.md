@@ -2,7 +2,7 @@
 
 This repository contains tools and code for research on sparse matrix multiplication using MLIR (Multi-Level Intermediate Representation). The project focuses on generating MLIR code for various sparse matrix operations and benchmarking them with real-world matrices from the SuiteSparse Matrix Collection.
 
-## 🎯 Project Overview
+## Project Overview
 
 The project aims to:
 - Generate MLIR code for sparse matrix operations (multiplication, elementwise operations)
@@ -10,7 +10,7 @@ The project aims to:
 - Compare performance between different sparse matrix operations
 - Provide tools for matrix exploration and analysis
 
-## 📁 Repository Structure
+## Repository Structure
 
 ```
 SPMM_MLIR/
