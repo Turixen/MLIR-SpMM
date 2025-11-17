@@ -47,12 +47,13 @@ def get_matrix_sparsity_from_metadata(matrix):
             return sparsity
     return None
 
-def find_multiplicable_matrices(min_sparsity=0.5, min_size=100, max_size=10000, max_results=50):
+def find_multiplicable_matrices(min_sparsity=0.5, max_sparsity=1.0, min_size=100, max_size=10000, max_results=50):
     """
     Trova coppie di matrici moltiplicabili A×B dove A.cols == B.rows
     
     Args:
         min_sparsity: sparsità minima richiesta (0.5 = almeno 50% di zeri)
+        max_sparsity: sparsità massima richiesta (1.0 = fino a 100% di zeri)
         min_size: dimensione minima per evitare matrici troppo piccole
         max_size: dimensione massima per evitare matrici troppo grandi
         max_results: numero massimo di coppie da mostrare
@@ -80,7 +81,7 @@ def find_multiplicable_matrices(min_sparsity=0.5, min_size=100, max_size=10000, 
             
             # Calcola sparsità
             sparsity = get_matrix_sparsity_from_metadata(matrix)
-            if sparsity is None or sparsity < min_sparsity:
+            if sparsity is None or sparsity < min_sparsity or sparsity > max_sparsity:
                 continue
                 
             # Filtra solo matrici reali (evita complesse se possibile)
@@ -96,7 +97,7 @@ def find_multiplicable_matrices(min_sparsity=0.5, min_size=100, max_size=10000, 
             })
         
         print(f"📊 Matrici adatte trovate: {len(suitable_matrices)}")
-        print(f"   (sparsità >= {min_sparsity:.1%}, dimensioni {min_size}-{max_size})")
+        print(f"   (sparsità {min_sparsity:.1%}-{max_sparsity:.1%}, dimensioni {min_size}-{max_size})")
         print()
         
         # Crea dizionario per trovare matrici compatibili velocemente
@@ -543,21 +544,167 @@ def list_available_groups():
         print(f"❌ Errore nel recupero dei gruppi: {e}")
         return []
 
+def analyze_sparsity_distribution(min_size=100, max_size=10000, limit=3000):
+    """Analizza la distribuzione della sparsità nelle matrici disponibili"""
+    try:
+        print("🔍 Analisi distribuzione sparsità in corso...")
+        print("⏳ Recupero informazioni da SuiteSparse Matrix Collection...")
+        print("-" * 60)
+        
+        # Ottieni tutte le matrici
+        all_matrices = search(limit=limit)
+        
+        # Raccogli statistiche sparsità
+        sparsities = []
+        suitable_matrices = []
+        
+        for matrix in all_matrices:
+            # Verifica che abbia le informazioni necessarie
+            if not (hasattr(matrix, 'rows') and hasattr(matrix, 'cols') and hasattr(matrix, 'nnz')):
+                continue
+                
+            rows, cols, nnz = matrix.rows, matrix.cols, matrix.nnz
+            
+            # Filtra per dimensioni se richiesto
+            if min_size > 0 and (rows < min_size or cols < min_size):
+                continue
+            if max_size > 0 and (rows > max_size or cols > max_size):
+                continue
+            
+            # Calcola sparsità
+            sparsity = get_matrix_sparsity_from_metadata(matrix)
+            if sparsity is not None:
+                sparsities.append(sparsity)
+                suitable_matrices.append({
+                    'name': matrix.name,
+                    'id': matrix.id,
+                    'group': getattr(matrix, 'group', 'Unknown'),
+                    'rows': rows,
+                    'cols': cols,
+                    'nnz': nnz,
+                    'sparsity': sparsity
+                })
+        
+        if not sparsities:
+            print("❌ Nessuna matrice valida trovata per l'analisi")
+            return None
+        
+        # Calcola statistiche
+        import numpy as np
+        sparsities_array = np.array(sparsities)
+        
+        min_sparsity = np.min(sparsities_array)
+        max_sparsity = np.max(sparsities_array)
+        mean_sparsity = np.mean(sparsities_array)
+        median_sparsity = np.median(sparsities_array)
+        std_sparsity = np.std(sparsities_array)
+        
+        # Percentili
+        p25 = np.percentile(sparsities_array, 25)
+        p75 = np.percentile(sparsities_array, 75)
+        p90 = np.percentile(sparsities_array, 90)
+        p95 = np.percentile(sparsities_array, 95)
+        p99 = np.percentile(sparsities_array, 99)
+        
+        print(f"📊 STATISTICHE SPARSITÀ ({len(sparsities)} matrici analizzate)")
+        print(f"   Criteri: dimensioni {min_size}-{max_size if max_size > 0 else '∞'}")
+        print()
+        print(f"   📈 Sparsità minima:  {min_sparsity:.6f} ({min_sparsity*100:.4f}%)")
+        print(f"   📈 Sparsità massima: {max_sparsity:.6f} ({max_sparsity*100:.4f}%)")
+        print(f"   📊 Media:           {mean_sparsity:.6f} ({mean_sparsity*100:.4f}%)")
+        print(f"   📊 Mediana:         {median_sparsity:.6f} ({median_sparsity*100:.4f}%)")
+        print(f"   📊 Deviazione std:  {std_sparsity:.6f}")
+        print()
+        print(f"   📊 PERCENTILI:")
+        print(f"      25°: {p25:.6f} ({p25*100:.4f}%)")
+        print(f"      75°: {p75:.6f} ({p75*100:.4f}%)")
+        print(f"      90°: {p90:.6f} ({p90*100:.4f}%)")
+        print(f"      95°: {p95:.6f} ({p95*100:.4f}%)")
+        print(f"      99°: {p99:.6f} ({p99*100:.4f}%)")
+        print()
+        
+        # Distribuzione per fasce
+        ranges = [
+            (0.0, 0.5, "Bassa (0-50%)"),
+            (0.5, 0.7, "Media (50-70%)"),
+            (0.7, 0.8, "Alta (70-80%)"),
+            (0.8, 0.9, "Molto alta (80-90%)"),
+            (0.9, 0.95, "Estrema (90-95%)"),
+            (0.95, 1.0, "Ultra-sparse (95-100%)")
+        ]
+        
+        print(f"   📊 DISTRIBUZIONE PER FASCE:")
+        for min_range, max_range, label in ranges:
+            count = np.sum((sparsities_array >= min_range) & (sparsities_array < max_range))
+            percentage = (count / len(sparsities)) * 100
+            print(f"      {label:20s}: {count:4d} matrici ({percentage:5.1f}%)")
+        
+        # Top 10 matrici più sparse
+        sorted_matrices = sorted(suitable_matrices, key=lambda x: x['sparsity'], reverse=True)
+        top_sparse = sorted_matrices[:10]
+        
+        print(f"\n   🏆 TOP 10 MATRICI PIÙ SPARSE:")
+        for i, m in enumerate(top_sparse, 1):
+            print(f"      {i:2d}. {m['name']:25s} | Sparsità: {m['sparsity']:.6f} ({m['sparsity']*100:.4f}%) | "
+                  f"Dimensioni: {m['rows']}×{m['cols']} | ID: {m['id']}")
+        
+        return {
+            'statistics': {
+                'min': min_sparsity,
+                'max': max_sparsity,
+                'mean': mean_sparsity,
+                'median': median_sparsity,
+                'std': std_sparsity,
+                'percentiles': {'p25': p25, 'p75': p75, 'p90': p90, 'p95': p95, 'p99': p99}
+            },
+            'matrices': suitable_matrices,
+            'top_sparse': top_sparse
+        }
+        
+    except Exception as e:
+        print(f"❌ Errore nell'analisi della sparsità: {e}")
+        import traceback
+        traceback.print_exc()
+        return None
+
 def main():
     # Gestione argomenti da linea di comando
     parser = argparse.ArgumentParser(description='Matrix Explorer - SuiteSparse Matrix Collection')
     parser.add_argument('--multiplicable', action='store_true', 
                        help='Cerca coppie di matrici moltiplicabili senza scaricarle')
+    parser.add_argument('--analyze-sparsity', action='store_true',
+                       help='Analizza la distribuzione della sparsità nelle matrici disponibili')
     parser.add_argument('--min-sparsity', type=float, default=0.5,
                        help='Sparsità minima richiesta (default: 0.5)')
+    parser.add_argument('--max-sparsity', type=float, default=1.0,
+                       help='Sparsità massima richiesta (default: 1.0)')
     parser.add_argument('--min-size', type=int, default=200,
-                       help='Dimensione minima matrici (default: 100)')
+                       help='Dimensione minima matrici (default: 200)')
     parser.add_argument('--max-size', type=int, default=300,
-                       help='Dimensione massima matrici (default: 10000)')
+                       help='Dimensione massima matrici (default: 300)')
     parser.add_argument('--max-results', type=int, default=50,
                        help='Numero massimo di coppie da mostrare (default: 50)')
     
     args = parser.parse_args()
+    
+    if args.analyze_sparsity:
+        print("🎯 Modalità analisi distribuzione sparsità")
+        print("=" * 60)
+        
+        result = analyze_sparsity_distribution(
+            min_size=args.min_size,
+            max_size=args.max_size if args.max_size > 0 else 0
+        )
+        
+        if result:
+            print(f"\n💡 SUGGERIMENTI PER LA RICERCA:")
+            stats = result['statistics']
+            print(f"   Per matrici molto sparse (>90%): --min-sparsity {stats['percentiles']['p90']:.3f}")
+            print(f"   Per matrici estremamente sparse (>95%): --min-sparsity {stats['percentiles']['p95']:.3f}")
+            print(f"   Per matrici ultra-sparse (>99%): --min-sparsity {stats['percentiles']['p99']:.3f}")
+            print(f"   Sparsità massima disponibile: --max-sparsity {stats['max']:.6f}")
+        
+        return
     
     if args.multiplicable:
         print("🎯 Modalità ricerca matrici moltiplicabili")
@@ -565,6 +712,7 @@ def main():
         
         pairs = find_multiplicable_matrices(
             min_sparsity=args.min_sparsity,
+            max_sparsity=args.max_sparsity,
             min_size=args.min_size,
             max_size=args.max_size,
             max_results=args.max_results
@@ -605,9 +753,10 @@ def main():
         print("4. Lista tipi di matrici disponibili")
         print("5. Lista gruppi di matrici disponibili")
         print("6. Cerca matrici moltiplicabili")
-        print("7. Esci")
+        print("7. Analizza distribuzione sparsità")
+        print("8. Esci")
         
-        choice = input("\nSeleziona un'opzione (1-7): ").strip()
+        choice = input("\nSeleziona un'opzione (1-8): ").strip()
         
         if choice == '1':
             try:
@@ -665,6 +814,9 @@ def main():
                 min_sparsity = input("Sparsità minima (default 0.5): ").strip()
                 min_sparsity = float(min_sparsity) if min_sparsity else 0.5
                 
+                max_sparsity = input("Sparsità massima (default 1.0): ").strip()
+                max_sparsity = float(max_sparsity) if max_sparsity else 1.0
+                
                 min_size = input("Dimensione minima (default 100): ").strip()
                 min_size = int(min_size) if min_size else 100
                 
@@ -676,9 +828,9 @@ def main():
                 
             except ValueError:
                 print("❌ Parametri non validi, uso valori di default")
-                min_sparsity, min_size, max_size, max_results = 0.5, 100, 10000, 50
+                min_sparsity, max_sparsity, min_size, max_size, max_results = 0.5, 1.0, 100, 10000, 50
             
-            pairs = find_multiplicable_matrices(min_sparsity, min_size, max_size, max_results)
+            pairs = find_multiplicable_matrices(min_sparsity, max_sparsity, min_size, max_size, max_results)
             
             if pairs:
                 try:
@@ -692,6 +844,30 @@ def main():
                     print("❌ Numero non valido")
             
         elif choice == '7':
+            print("\n🎯 Analisi distribuzione sparsità")
+            print("-" * 40)
+            
+            try:
+                min_size = input("Dimensione minima (default 100): ").strip()
+                min_size = int(min_size) if min_size else 100
+                
+                max_size = input("Dimensione massima (default 10000, 0=nessun limite): ").strip()
+                max_size = int(max_size) if max_size else 10000
+                
+            except ValueError:
+                print("❌ Parametri non validi, uso valori di default")
+                min_size, max_size = 100, 10000
+            
+            result = analyze_sparsity_distribution(min_size, max_size if max_size > 0 else 0)
+            
+            if result:
+                print(f"\n💡 SUGGERIMENTI BASATI SUI DATI:")
+                stats = result['statistics']
+                print(f"   Per matrici molto sparse: --min-sparsity {stats['percentiles']['p90']:.3f}")
+                print(f"   Per matrici estremamente sparse: --min-sparsity {stats['percentiles']['p95']:.3f}")
+                print(f"   Sparsità massima: --max-sparsity {stats['max']:.6f}")
+                
+        elif choice == '8':
             print("\n👋 Arrivederci!")
             break
             
