@@ -1,5 +1,5 @@
-OPT = /root/llvm-project/build/bin/mlir-opt
-TRANSLATE = /root/llvm-project/build/bin/mlir-translate
+OPT = /home/gmastrotucci/llvm-project/build/bin/mlir-opt
+TRANSLATE = /home/gmastrotucci/llvm-project/build/bin/mlir-translate
 
 # Output directory
 BUILD_DIR = build
