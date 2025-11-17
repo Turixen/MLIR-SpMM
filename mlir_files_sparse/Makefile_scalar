@@ -52,7 +52,7 @@ $(shell mkdir -p $(BUILD_DIR))
 
 # Generate .S files in the build directory
 %.S: %.ll
-	/root/llvm-project/build/bin/llc -march=riscv64 -mattr=+m,+a,+f,+d,+v,+c -o $@ $<
+	/home/gmastrotucci/llvm-project/build/bin/llc -march=riscv64 -mattr=+m,+a,+f,+d,+v,+c -o $@ $<
 
 # Generate final executable in the build directory
 %: %.S
