@@ -33,4 +33,4 @@ $(shell mkdir -p $(BUILD_DIR))
 
 # Generate final executable in the build directory
 %: %.S
-	riscv64-redhat-linux-gcc-14 -march=rv64imafdcv -mabi=lp64d -o $@ $<
+	riscv64-linux-gnu-gcc-13 -march=rv64imafdcv -mabi=lp64d -o $@ $<
